@@ -1,6 +1,6 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
-/** known Isssues:
+/** known Issues:
  * Possible overlap with file that has the same name as config_dir
  * 
  * How to run locally, execute the following in the shell: code --extensionDevelopmentPath=$PWD
@@ -11,7 +11,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { UCQ } from './panel';
 import { getConfig, Config } from "./config";
-import { verifyPython } from "./pythonHandling";
+// import { verifyPython } from "./pythonHandling";
 import { print, error, info, getLastFromPath, mkDir, checkIfFileInDir} from "./src";
 import { handleLegacy } from './handleLegacy';
 
@@ -47,7 +47,7 @@ async function init(config:Config, verbose:boolean) {
 		}
 
 		// getting the template main file name from the template main file path
-		let fname = `example_${getLastFromPath(config.templatePythonFile)}`;
+		let fname:string = `example_${getLastFromPath(config.templatePythonFile)}`;
 
 		// if the main file is not in the current directory
 		if (!(await checkIfFileInDir(config.workspacePath, fname))) {
@@ -74,13 +74,13 @@ async function init(config:Config, verbose:boolean) {
 				// 	}
 				// });
 				// opening the example file in the editor
-				let documet:vscode.TextDocument|undefined = await vscode.workspace.openTextDocument(path.join(config.workspacePath, fname));
-				if (documet === undefined) {
+				let document:vscode.TextDocument|undefined = await vscode.workspace.openTextDocument(path.join(config.workspacePath, fname));
+				if (document === undefined) {
 					// if the opening of the file failed let the user know
 				 	error(`could not open "${path.join(config.workspacePath, fname)} in code"`);
 				} else {
 					// opens document in first column
-					await vscode.window.showTextDocument(documet, vscode.ViewColumn.One, false);
+					await vscode.window.showTextDocument(document, vscode.ViewColumn.One, false);
 				}
 			}
 		}
@@ -96,20 +96,33 @@ async function init(config:Config, verbose:boolean) {
 export async function activate(context: vscode.ExtensionContext) {
 	print("In activate");
 
+	// let executing:boolean = false;
+
+	// let globalConfig:Config = await getConfig(context);
+
+	// let layoutWatcher:vscode.FileSystemWatcher = vscode.workspace.createFileSystemWatcher(globalConfig.layoutFile, false, false, false);
+	// layoutWatcher.onDidChange(() => {
+	// 	if (UCQ.currentPanel) {
+	// 		UCQ.currentPanel?.update();
+	// 	}
+	// });
+	// context.subscriptions.push(
+
+	// );
+
 	// adding the command to vscode
 	context.subscriptions.push(
 		vscode.commands.registerCommand("uc-quantum-lab.execute", async () => {
-			
 			print("--- executing ---");
 			try {
 				// loading the configuration from the ./config.ts
 				let config:Config = await getConfig(context);
-				
+				// globalConfig = config;
 				// handles features from previous versions of this extension
 				await handleLegacy(config);
 
 				// verifying the selected python environment
-				await verifyPython(config);
+				// await verifyPython(config);
 
 				// if the viewer panel is open and there is an active editor
 				if (UCQ.currentPanel && vscode.window.activeTextEditor) {
@@ -129,14 +142,23 @@ export async function activate(context: vscode.ExtensionContext) {
 							error("Invalid choice for whether or not to reinit");
 						}
 					} else {
-						print("executing in termial");
+						print("executing in terminal");
 						// executing the python file in the terminal with the python extension
 						// vscode.commands.executeCommand("python.execInTerminal");
 						// if here, then the file is a python file
 						print("saving active document");
 						await vscode.window.activeTextEditor.document.save();
+
+						// waiting for the layout.json file to be updated
+						let watcher:vscode.FileSystemWatcher = vscode.workspace.createFileSystemWatcher(config.layoutFile, false, false, false);
+						print("created watcher for execute");
+						watcher.onDidChange(() => {
+							// updating the panel, when the layout file is updated
+							UCQ.currentPanel?.update();
+							watcher.dispose();	
+						});
 						
-						print("executing in termial");
+						print("executing in terminal");
 						// if there is an active terminal in editor
 						if (vscode.window.activeTerminal) {
 							print("Sending to active terminal");
@@ -152,15 +174,6 @@ export async function activate(context: vscode.ExtensionContext) {
 							// sending the python command to active terminal to execute the active python file
 							term.sendText(`${config.userConfig.python} ${vscode.window.activeTextEditor.document.fileName}`);
 						}
-						// waiting for the layout.json file to be updated
-						let watcher:vscode.FileSystemWatcher = vscode.workspace.createFileSystemWatcher(config.layoutFile, false, false, false);
-						print("created watcher");
-						watcher.onDidChange(() => {
-							print("caught change");
-							// updating the panel, when the layout file is updated
-							UCQ.currentPanel?.update();
-							watcher.dispose();	
-						});
 					}
 				} else {
 					// if nothing is opening, first running init to make sure everything is setup correctly
@@ -170,6 +183,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					UCQ.createOrShow(config);
 					//vscode.commands.executeCommand("uc-quantum-lab.execute");
 				}
+
 			// functions handle their own errors so do not need to do anything here
 			} catch ( e ) {}
 		})
@@ -180,7 +194,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			try {
 				// loading the config from "./config.ts"
 				let config:Config = await getConfig(context);
-				
+				// globalConfig = config;
 				// initing the current directory
 				await init(config, true);
 			// functions handle their own errors so do not need to do anything here
@@ -193,7 +207,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			try {
 				// loading the config from "./config.ts"
 				let config:Config = await getConfig(context);
-
+				// globalConfig = config;
 				// if the config directory exists in the current directory
 				if (fs.existsSync(config.configDir)) {
 					// prompting user with what it will do to the config directory
